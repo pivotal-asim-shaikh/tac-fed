@@ -26,6 +26,9 @@ export FINAL_CUSTOM_IMAGE_REPOSITORY="my.private.registry/tac/"
 export TAC_IMAGE_REPOSITORY="registry.pivotal.io/tac-federal-apple"
 export TAC_REPOSITORY_USER="robot\$federal-apple-client"
 
+# Set the following to allow Helm to work with OCI repos. Don't change this.
+export HELM_EXPERIMENTAL_OCI=1
+
 if [ ! -d "$LOCAL_CHART_DIRECTORY" ] 
 then
   echo "Directory $LOCAL_CHART_DIRECTORY DOES NOT exist. Pleae create it and re-run."
