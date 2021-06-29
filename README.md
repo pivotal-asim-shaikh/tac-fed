@@ -10,4 +10,4 @@ TAC_IMAGE_REPOSITORY="registry.pivotal.io/tac-federal-apple"
 
 TAC_REPOSITORY_USER="robot\$federal-apple-client"
 
-These scripts require [Skopeo](https://github.com/containers/skopeo) and [Helm](https://helm.sh/)
+These scripts require [Skopeo](https://github.com/containers/skopeo) and [Helm](https://helm.sh/), jq, and [oras](https://github.com/oras-project/oras)
