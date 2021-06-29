@@ -29,6 +29,9 @@ export TAC_REPOSITORY_USER="robot\$federal-apple-client"
 # Set the following to allow Helm to work with OCI repos. Don't change this.
 export HELM_EXPERIMENTAL_OCI=1
 
+# Reuse the tac-auth.json for Helm
+export HELM_REGISTRY_CONFIG="./tac-autha.json"
+
 if [ ! -d "$LOCAL_CHART_DIRECTORY" ] 
 then
   echo "Directory $LOCAL_CHART_DIRECTORY DOES NOT exist. Pleae create it and re-run."
@@ -57,7 +60,7 @@ if [ ! -f tac-auth.json ]; then
 fi
 
 TAC_FILE="asset-index.json"
-oras pull $TAC_IMAGE_REPOSITORY/index:latest -a >/dev/null
+oras pull $TAC_IMAGE_REPOSITORY/index:latest -a -c tac-auth.json >/dev/null
 
 echo && echo "# Downloading charts"
 for row in $(<$TAC_FILE jq -r '.charts[] | @base64'); do

@@ -50,7 +50,7 @@ if [ ! -f tac-auth.json ]; then
 fi
 
 TAC_FILE="asset-index.json"
-oras pull $TAC_IMAGE_REPOSITORY/index:latest -a >/dev/null
+oras pull $TAC_IMAGE_REPOSITORY/index:latest -a -c tac-auth.json >/dev/null
   
 echo "# Downloading Images"
 for row in $(<$TAC_FILE jq -r '.containers[] | @base64'); do
