@@ -9,3 +9,5 @@ LOCAL_CHART_DIRECTORY="some/path/to/charts"
 TAC_IMAGE_REPOSITORY="registry.pivotal.io/tac-federal-apple"
 
 TAC_REPOSITORY_USER="robot\$federal-apple-client"
+
+These scripts require [Skopeo](https://github.com/containers/skopeo) and [Helm](https://helm.sh/)
