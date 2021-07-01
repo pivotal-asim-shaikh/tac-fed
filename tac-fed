@@ -1,0 +1,219 @@
+#!/usr/bin/env bash
+
+# Copyright 2020 The TKG Contributors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+set -eu
+shopt -s expand_aliases
+
+# Global variables
+DEPENDENCIES=('oras' 'skopeo' 'helm' 'jq' 'base64')
+HELM_EXPERIMENTAL_OCI=1
+REPOSITORY_ROOT=$(git rev-parse --show-toplevel)
+CACHE_DIR="${HOME}/tac-fed"
+ASSET_FILE="${CACHE_DIR}/asset-index.json"
+CHART_DIR="${CACHE_DIR}/charts"
+CHART_ARCHIVE="${CHART_DIR}.tgz"
+IMAGE_DIR="${CACHE_DIR}/images"
+IMAGE_ARCHIVE="${IMAGE_DIR}.tgz"
+CREDENTIAL_FILE="${CACHE_DIR}/tac-auth.json"
+HELM_REGISTRY_CONFIG="${CREDENTIAL_FILE}"
+[[ -z "${TAC_URI:-}" ]] && TAC_URI="registry.pivotal.io"
+
+export HELM_EXPERIMENTAL_OCI
+export HELM_REGISTRY_CONFIG
+
+function check_deps() {
+    local dependency="${1}"
+
+    if ! command -v "${dependency}" > /dev/null; then
+        echo "${dependency}"
+    fi
+}
+
+function main() {
+    green=""
+    red=""
+    yellow=""
+    magenta=""
+    cyan=""
+    blink=""
+    bold=""
+    normal=""
+    local missing_dependencies=()
+
+    # source the core functions
+    source "${REPOSITORY_ROOT}/functions/core"
+
+    # create our cache directory
+    mkdir -p "${CACHE_DIR}"
+
+    if command -v tput > /dev/null 2>&1; then
+        ncolors="$(tput colors)"
+        tput clear
+    fi
+
+    if [[ -t 1 ]] && [[ -n "${ncolors}" ]] && [[ "${ncolors}" -ge 8 ]]; then
+        red="$(tput setaf 1)"
+        green="$(tput setaf 2)"
+        yellow="$(tput setaf 3)"
+        magenta="$(tput setaf 5)"
+        cyan="$(tput setaf 6)"
+        blink="$(tput blink)"
+        bold="$(tput bold)"
+        normal="$(tput sgr0)"
+    fi
+
+    banner
+
+    for element in ${DEPENDENCIES[@]}; do
+        missing_dependencies+=($(check_deps "${element}"))
+    done
+
+    if [[ ${#missing_dependencies[@]} -gt 0 ]]; then
+        echo "${red}ERROR: The following dependent packages are missing: ${missing_dependencies[@]}${normal}"
+        echo "${magenta}INFO: Please install all requisite packages.${normal}"
+        exit
+    fi
+
+    [[ $# -lt 1 ]] && usage
+        arg_checker "$@"
+}
+
+function usage() {
+    echo -e "\n${bold}${magenta}USAGE${normal}: ./tac-fed COMMAND [OPTS]"
+    echo -e "
+${bold}${yellow}COMMANDS${normal}:
+${bold}* chart_pull${normal}: pull all of the latest charts that you are entitled to in TAC
+${bold}* image_pull${normal}: pull all of the latest container images that you are entitled to in TAC
+${bold}* clean${normal}: expunge the charts and images that are created by this tool
+${bold}* help${normal}: print this usage text and exit
+
+${bold}${yellow}OPTS${normal}:
+${bold}* --repository${normal}: your tac repository (e.g. 'tac-federal-customer', if using registry.pivotal.io/tac-federal-customer)
+${bold}* --help${normal}: print this usage text and exit
+
+${bold}${magenta}EXAMPLES${normal}:
+    ${cyan}./tac-fed clean
+    ${cyan}./tac-fed image_pull${normal} --repository=tac-federal-customer
+    ${cyan}./tac-fed chart_pull${normal} --repository=tac-federal-customer\n"
+
+  exit 1
+}
+
+function banner() {
+    echo "${bold}${cyan}"
+    echo '
+   _|                                          _|_|                  _|
+ _|_|_|_|    _|_|_|    _|_|_|                _|        _|_|      _|_|_|
+   _|      _|    _|  _|        _|_|_|_|_|  _|_|_|_|  _|_|_|_|  _|    _|
+   _|      _|    _|  _|                      _|      _|        _|    _|
+     _|_|    _|_|_|    _|_|_|                _|        _|_|_|    _|_|_|
+'"${normal}"
+}
+
+function arg_checker() {
+    local command="${1}"
+    local option="${2:-null}"
+    local commands=('help' 'chart_pull' 'image_pull' 'clean')
+    local options=('--help' '--repository')
+
+    if ! contains_string "${command}" "${commands[@]}"; then
+        echo "${red}ERROR: ${normal}${bold}${command}${normal} is not a valid command."
+        usage
+    fi
+
+    if [[ "${command}" =~ 'pull' ]]; then
+        if ! contains_string "${option%=*}" "${options[@]}"; then
+            error_message="${red}ERROR: ${normal}${bold}${option}${normal} is not a valid option for the ${command} command."
+            if [[ "${option}" == "null" ]]; then
+                error_message="${red}ERROR:${normal} exactly one option must be provided to the ${command} command."
+            fi
+            echo "${error_message}"
+            usage
+        fi
+        case "${option}" in
+            "--help" )
+                usage;;
+            "--repository="* )
+                local repository="${option#*=}"
+                shared_tasks "${repository:-}"
+                "${command}" "${repository:-}";;
+        esac
+    fi
+
+    [[ "${command}" == 'help' ]] && usage
+    [[ "${command}" == 'clean' ]] && clean "${IMAGE_DIR}" "${IMAGE_ARCHIVE}" "${CHART_DIR}" "${CHART_ARCHIVE}"
+}
+
+shared_tasks() {
+    local repository="${1}"
+
+    if ! [[ -f "${CREDENTIAL_FILE}" ]]; then
+        credential_prompt
+        echo "${magenta}INFO:${normal} Generating your credential file (${CREDENTIAL_FILE})."
+        generate_credential_file "${TAC_URI}" "${TAC_USERNAME}" "${TAC_PASSWORD}" "${CREDENTIAL_FILE}" && success
+    else
+        echo "${magenta}INFO:${normal} Reusing existing credential file! Delete ${CREDENTIAL_FILE} to recreate it on next invocation." && success
+    fi
+
+    echo "${magenta}INFO:${normal} Fetching the TAC asset index file. This includes your current TAC entitlements."
+    fetch_asset_index "${TAC_URI}" "${repository}" "${CREDENTIAL_FILE}" "${CACHE_DIR}" && success
+}
+
+image_pull() {
+    local repository="${1}"
+
+    mkdir -p "${IMAGE_DIR}"
+    echo "${magenta}INFO:${normal} Downloading images to ${IMAGE_DIR}"
+    _image_pull "${ASSET_FILE}" "${CREDENTIAL_FILE}" "${IMAGE_DIR}"
+    echo "${magenta}INFO:${normal} Gzipping all images to ${IMAGE_ARCHIVE}"
+    bundle_software "${IMAGE_ARCHIVE}" "${IMAGE_DIR}" && success
+    summary "image" "${IMAGE_ARCHIVE}" "${IMAGE_DIR}" "${repository}"
+}
+
+chart_pull() {
+    local repository="${1}"
+
+    mkdir -p "${CHART_DIR}"
+    echo "${magenta}INFO:${normal} Downloading charts to ${CHART_DIR}"
+    _chart_pull "${ASSET_FILE}" "${CHART_DIR}"
+    echo "${magenta}INFO:${normal} Gzipping all charts to ${CHART_ARCHIVE}"
+    bundle_software "${CHART_ARCHIVE}" "${CHART_DIR}" && success
+    summary "chart" "${CHART_ARCHIVE}" "${CHART_DIR}" "${repository}"
+}
+
+
+clean() {
+    local files=($@)
+
+    echo "${magenta}INFO:${normal} Performing some housekeeping."
+    for element in ${files[@]}; do
+        echo "${yellow}*${normal} Expunging ${element}"
+        rm -rf "${element}" && success
+    done
+}
+
+summary() {
+    local type="${1}"
+    local archive="${2}"
+    local dir="${3}"
+    local repository="${4}"
+
+    echo "${magenta}INFO:${normal} Successfully pulled ${type} entitlements for ${repository}!"
+    echo "${yellow}*${normal} Archived ${type} entitlements saved to: ${archive}"
+    echo "${yellow}*${normal} Raw ${type} entitlements saved to: ${dir}"
+}
+
+main "$@"

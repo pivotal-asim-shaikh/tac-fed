@@ -1,1 +1,5 @@
-tac-creds.json
+.vscode/
+asset-index.json
+charts/
+images/
+tac-auth.json

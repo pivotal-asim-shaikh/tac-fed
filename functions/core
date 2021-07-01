@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+
+# Copyright 2020 The TKG Contributors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+function success() {
+    printf "${green}\xE2\x9C\x94${normal} ${yellow}OK${normal}\n"
+}
+
+function aliases() {
+    case "${OSTYPE}" in
+        linux*)   alias base64='base64 --wrap=0' ;;
+        darwin*)  alias base64='base64 --break=0' ;;
+        *)        : ;;
+    esac
+}
+
+function credential_prompt() {
+    read -p "[${blink}*${normal}] Enter the TAC robot username: " TAC_USERNAME && success
+
+    while :; do
+        read -sp "[${blink}*${normal}] Enter the TAC robot password (token): " TAC_PASSWORD && success
+        read -sp "[${blink}*${normal}] Re-enter the TAC robot password (token): " TAC_PASSWORD_REPEAT && success
+
+        [[ "${TAC_PASSWORD}" != "${TAC_PASSWORD_REPEAT}" ]] || break
+        echo -e "${yellow}WARNING${normal}: The entered robot passwords did not match. Please try again.\n"
+    done
+    export TAC_USERNAME
+    export TAC_PASSWORD
+}
+
+function generate_credential_file() {
+    local uri="${1}"
+    local username="${2}"
+    local password="${3}"
+    local credential_file="${4}"
+    local htpasswd="${username}:${password}"
+
+    aliases
+    base64_payload=$(echo -n "${htpasswd}" | base64)
+    echo '{"auths":{"'${uri}'":{"auth":"'${base64_payload//[$'\t\r\n ']}'"}}}' > "${credential_file}"
+}
+
+fetch_asset_index() {
+    local uri="${1}"
+    local repository="${2}"
+    local credential_file="${3}"
+    local cache_dir="${4}"
+    local tag="${5:-latest}"
+
+    pushd "${cache_dir}" > /dev/null
+    oras pull "${uri}/${repository}/index:${tag}" \
+        --allow-all \
+        --config "${credential_file}" > /dev/null || return 1
+    popd > /dev/null
+}
+
+_image_pull() {
+    local asset_file="${1}"
+    local credential_file="${2}"
+    local image_dir="${3}"
+    local image_name=""
+    local image_tags=""
+    local image_version=()
+
+    aliases
+    for row in $(jq -r '.containers[] | @base64' "${asset_file}"); do
+        image_name=$(jq_encode '.name' "${row}")
+        image_tags=$(jq_encode '.versions[0].tags' "${row}")
+
+        for tag in $(jq -r '.[]' <(echo "${image_tags}")); do
+            image_version=(${tag//:/ })
+            echo "${yellow}*${normal} Copying ${tag} to ${image_dir}/${image_name}:${image_version[1]}"
+            skopeo copy \
+                --src-authfile "${credential_file}" \
+                docker://${tag} dir:"${image_dir}/${image_name}:${image_version[1]}" && success
+        done
+    done
+}
+
+_chart_pull() {
+    local asset_file="${1}"
+    local chart_dir="${2}"
+    local chart_uri=""
+    local image_name=""
+
+    for row in $(jq -r '.charts[] | @base64' "${asset_file}"); do
+        image_name=$(jq_encode '.name' "${row}")
+        chart_uri=$(jq_encode '.versions[0].uri' "${row}")
+        helm chart pull "${chart_uri}" && success
+        helm chart export -d "${chart_dir}" "${chart_uri}" && success
+    done
+}
+
+contains_string() {
+    local e match="${1}"
+
+    shift
+    for e; do [[ "${e}" == "${match}" ]] && return 0; done
+    return 1
+}
+
+jq_encode() {
+    local key="${1}"
+    local row="${2}"
+
+    aliases
+    echo "${row}" | base64 --decode | jq -r "${key}"
+}
+
+bundle_software() {
+    local archive="${1}"
+    local directory="${2}"
+
+    tar -czf "${archive}" "${directory}"
+}
