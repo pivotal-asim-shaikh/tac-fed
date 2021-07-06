@@ -11,10 +11,10 @@ Utility to assist in the movement of helm charts and container images from Tanzu
 ## Getting started
 Install all of the tools in the [Requisite tooling](#requisite-tooling) section
 
-Credentials are parsed from an authentication file (`tac-auth.json`), composed in the dockerconfigjson format.`tac-config.json` is generated on the first execution of this script and will be used for subsequent executions. You **must** know the robot credentials that were provided to you as part of your TAC license agreement.
+Credentials are parsed from an authentication file (`tac-auth.json`), composed in the dockerconfigjson format. `tac-config.json` is generated on the first execution of this script and will be used for subsequent executions. You **must** know the robot credentials that were provided to you as part of your TAC license agreement.
 
 **NOTES**:
-* A cache directory is persisted to ~/tac-fed.
+* A cache directory is persisted to `~/tac-fed`.
 * Image transfer is generally slow due to serial requests to transfer images.
 
 ## Requisite tooling
@@ -26,7 +26,9 @@ These helper scripts depend on the following tools:
 * [skopeo](https://github.com/containers/skopeo)
 
 ## Usage
-Currently this command relies on being run from Git repo, due to its dependence on helper functions. This will be bundled for easy installation at a later date.
+Currently this command relies on being run from the directory that you cloned this Git repo into, due to its dependence on helper functions. This will be bundled for easy installation at a later date.
+
+Providing the `--repository` option to the `image_pull` and the `chart_pull` commands is mandatory!
 
 ```console
 USAGE: ./tac-fed COMMAND [OPTS]
