@@ -83,7 +83,7 @@ _image_pull() {
             image_version=(${tag//:/ })
             echo "${yellow}*${normal} Copying ${tag} to ${image_dir}/${image_name}:${image_version[1]}"
             skopeo copy \
-                --src-authfile "${credential_file}" \
+                --authfile "${credential_file}" \
                 docker://${tag} dir:"${image_dir}/${image_name}:${image_version[1]}" && success
         done
     done
