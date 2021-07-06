@@ -43,8 +43,19 @@ OPTS:
 * --repository: your tac repository (e.g. 'tac-federal-customer', if using registry.pivotal.io/tac-federal-customer)
 * --help: print this usage text and exit
 
+ENV:
+* TAC_CACHE_DIR: location to save charts, container images and TAC authentication file (current: /home/foo/tac-fed)
+
 EXAMPLES:
     ./tac-fed clean
     ./tac-fed image_pull --repository=tac-federal-customer
     ./tac-fed chart_pull --repository=tac-federal-customer
+```
+
+### Environment variables
+The destination directory can currently be controlled via the `TAC_CACHE_DIR` environment variable prior to executing `tac-fed`. Ensure that the destination directory is adequately sized; `image_pull` operations can exceed 50GiB in size.
+
+```bash
+TAC_CACHE_DIR=/tmp/tac-fed
+export TAC_CACHE_DIR
 ```

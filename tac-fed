@@ -21,7 +21,7 @@ shopt -s expand_aliases
 DEPENDENCIES=('oras' 'skopeo' 'helm' 'jq' 'base64')
 HELM_EXPERIMENTAL_OCI=1
 REPOSITORY_ROOT=$(git rev-parse --show-toplevel)
-CACHE_DIR="${HOME}/tac-fed"
+CACHE_DIR="${TAC_CACHE_DIR:-${HOME}/tac-fed}"
 ASSET_FILE="${CACHE_DIR}/asset-index.json"
 CHART_DIR="${CACHE_DIR}/charts"
 CHART_ARCHIVE="${CHART_DIR}.tgz"
@@ -103,6 +103,9 @@ ${bold}* help${normal}: print this usage text and exit
 ${bold}${yellow}OPTS${normal}:
 ${bold}* --repository${normal}: your tac repository (e.g. 'tac-federal-customer', if using registry.pivotal.io/tac-federal-customer)
 ${bold}* --help${normal}: print this usage text and exit
+
+${bold}${yellow}ENV${normal}:
+${bold}* TAC_CACHE_DIR${normal}: location to save charts, container images and TAC authentication file (current: ${CACHE_DIR})
 
 ${bold}${magenta}EXAMPLES${normal}:
     ${cyan}./tac-fed clean
