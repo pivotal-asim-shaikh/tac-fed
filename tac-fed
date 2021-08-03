@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2020 The TKG Contributors.
+# Copyright 2021 The TKG Contributors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,8 +27,9 @@ CHART_DIR="${CACHE_DIR}/charts"
 CHART_ARCHIVE="${CHART_DIR}.tgz"
 IMAGE_DIR="${CACHE_DIR}/images"
 IMAGE_ARCHIVE="${IMAGE_DIR}.tgz"
-CREDENTIAL_FILE="${CACHE_DIR}/tac-auth.json"
-HELM_REGISTRY_CONFIG="${CREDENTIAL_FILE}"
+TAC_CREDENTIAL_FILE="${CACHE_DIR}/tac-auth.json"
+PRIVATE_REGISTRY_CREDENTIAL_FILE="${CACHE_DIR}/private-registry-auth.json"
+HELM_REGISTRY_CONFIG="${TAC_CREDENTIAL_FILE}"
 [[ -z "${TAC_URI:-}" ]] && TAC_URI="registry.pivotal.io"
 
 export HELM_EXPERIMENTAL_OCI
@@ -43,14 +44,14 @@ function check_deps() {
 }
 
 function main() {
-    green=""
-    red=""
-    yellow=""
-    magenta=""
-    cyan=""
     blink=""
     bold=""
+    cyan=""
+    green=""
+    magenta=""
     normal=""
+    red=""
+    yellow=""
     local missing_dependencies=()
 
     # source the core functions
@@ -65,14 +66,14 @@ function main() {
     fi
 
     if [[ -t 1 ]] && [[ -n "${ncolors}" ]] && [[ "${ncolors}" -ge 8 ]]; then
-        red="$(tput setaf 1)"
-        green="$(tput setaf 2)"
-        yellow="$(tput setaf 3)"
-        magenta="$(tput setaf 5)"
-        cyan="$(tput setaf 6)"
         blink="$(tput blink)"
         bold="$(tput bold)"
+        cyan="$(tput setaf 6)"
+        green="$(tput setaf 2)"
+        magenta="$(tput setaf 5)"
         normal="$(tput sgr0)"
+        red="$(tput setaf 1)"
+        yellow="$(tput setaf 3)"
     fi
 
     banner
@@ -82,8 +83,8 @@ function main() {
     done
 
     if [[ ${#missing_dependencies[@]} -gt 0 ]]; then
-        echo "${red}ERROR: The following dependent packages are missing: ${missing_dependencies[@]}${normal}"
-        echo "${magenta}INFO: Please install all requisite packages.${normal}"
+        failure && echo "The following requisite packages are missing: ${bold}${cyan}${missing_dependencies[@]}${normal}"
+        info && echo "Please install all requisite packages."
         exit
     fi
 
@@ -92,25 +93,32 @@ function main() {
 }
 
 function usage() {
-    echo -e "\n${bold}${magenta}USAGE${normal}: ./tac-fed COMMAND [OPTS]"
+    echo -e "\n${bold}${magenta}USAGE${normal}: ${cyan}./tac-fed${normal} COMMAND [OPTS]"
     echo -e "
 ${bold}${yellow}COMMANDS${normal}:
-${bold}* chart_pull${normal}: pull all of the latest charts that you are entitled to in TAC
-${bold}* image_pull${normal}: pull all of the latest container images that you are entitled to in TAC
-${bold}* clean${normal}: expunge the charts and images that are created by this tool
-${bold}* help${normal}: print this usage text and exit
+${bold}* ${cyan}chart_pull${normal}: pull all of the latest charts that you are entitled to in TAC
+${bold}* ${cyan}image_pull${normal}: pull all of the latest container images that you are entitled to in TAC
+${bold}* ${cyan}image_push${normal}: synchronize a local directory of container images to TAC
+${bold}* ${cyan}clean${normal}: expunge the charts and images that are created by this tool
+${bold}* ${cyan}help${normal}: print this usage text and exit
 
-${bold}${yellow}OPTS${normal}:
-${bold}* --repository${normal}: your tac repository (e.g. 'tac-federal-customer', if using registry.pivotal.io/tac-federal-customer)
-${bold}* --help${normal}: print this usage text and exit
+${bold}${yellow}GLOBAL OPTS${normal}:
+${bold}* ${cyan}--help${normal}: print this usage text and exit
+
+${bold}${yellow}PULL OPTS${normal}:
+${bold}* ${cyan}--repository${normal}: your tac repository (e.g. 'tac-federal-customer', if using registry.pivotal.io/tac-federal-customer)
+
+${bold}${yellow}PUSH OPTS${normal}:
+${bold}* ${cyan}--destination${normal}: your private registry and path (e.g. harbor.your.private.domain/tac)
 
 ${bold}${yellow}ENV${normal}:
-${bold}* TAC_CACHE_DIR${normal}: location to save charts, container images and TAC authentication file (current: ${CACHE_DIR})
+${bold}* ${cyan}TAC_CACHE_DIR${normal}: location to save charts, container images and TAC authentication file (current: ${CACHE_DIR})
 
 ${bold}${magenta}EXAMPLES${normal}:
     ${cyan}./tac-fed clean
     ${cyan}./tac-fed image_pull${normal} --repository=tac-federal-customer
-    ${cyan}./tac-fed chart_pull${normal} --repository=tac-federal-customer\n"
+    ${cyan}./tac-fed chart_pull${normal} --repository=tac-federal-customer
+    ${cyan}./tac-fed image_push${normal} --destination=harbor.your.private.domain/tac\n"
 
   exit 1
 }
@@ -128,95 +136,144 @@ function banner() {
 
 function arg_checker() {
     local command="${1}"
-    local option="${2:-null}"
-    local commands=('help' 'chart_pull' 'image_pull' 'clean')
-    local options=('--help' '--repository')
+    shift
+    local options=($@)
+    local commands=('help' 'chart_pull' 'image_pull' 'clean' 'image_push')
+    local pull_options=('--help' '--repository')
+    local push_options=('--help' '--destination')
+    local allowed_options="${pull_options[@]}"
+    local type="pull"
+    local credential_file="${TAC_CREDENTIAL_FILE}"
+    local uri="${TAC_URI}"
 
-    if ! contains_string "${command}" "${commands[@]}"; then
-        echo "${red}ERROR: ${normal}${bold}${command}${normal} is not a valid command."
-        usage
-    fi
-
-    if [[ "${command}" =~ 'pull' ]]; then
-        if ! contains_string "${option%=*}" "${options[@]}"; then
-            error_message="${red}ERROR: ${normal}${bold}${option}${normal} is not a valid option for the ${command} command."
-            if [[ "${option}" == "null" ]]; then
-                error_message="${red}ERROR:${normal} exactly one option must be provided to the ${command} command."
-            fi
-            echo "${error_message}"
+        if ! contains_string "${command}" "${commands[@]}"; then
+            failure && echo "${bold}${cyan}${command}${normal} is not a valid command."
             usage
         fi
-        case "${option}" in
-            "--help" )
-                usage;;
-            "--repository="* )
-                local repository="${option#*=}"
-                shared_tasks "${repository:-}"
-                "${command}" "${repository:-}";;
-        esac
-    fi
+        if [[ $# -eq 0 ]] && [[ "${command}" =~ pull|push ]]; then
+            failure && echo "${bold}${cyan}${command}${normal} requires options to be specified. See usage."
+            usage
+        fi
 
-    [[ "${command}" == 'help' ]] && usage
-    [[ "${command}" == 'clean' ]] && clean "${IMAGE_DIR}" "${IMAGE_ARCHIVE}" "${CHART_DIR}" "${CHART_ARCHIVE}"
+        if [[ "${command}" =~ 'push' ]]; then
+            type="push"
+            allowed_options="${push_options[@]}"
+            credential_file="${PRIVATE_REGISTRY_CREDENTIAL_FILE}"
+        fi
+
+        while [[ $# -gt 0 ]]; do
+            local option="${1:-null}"
+            shift
+            if ! contains_string "${option%=*}" ${allowed_options[@]}; then
+                error_message="${bold}${option}${normal} is not a valid option for the ${command} command."
+                if [[ "${option}" == "null" ]]; then
+                    error_message="exactly one option must be provided to the ${command} command."
+                fi
+                failure && echo "${error_message}"
+                usage
+            fi
+            case "${option}" in
+                "--help" )
+                    usage;;
+                "--repository="* )
+                    local repository="${option#*=}";;
+                "--destination="* )
+                    local destination="${option#*=}"
+                    uri="${destination#*://}"
+                    uri="${uri%/*}";;
+            esac
+        done
+
+        [[ "${command}" == 'help' ]] && usage
+        [[ "${command}" == 'clean' ]] && clean "${IMAGE_DIR}" "${IMAGE_ARCHIVE}" "${CHART_DIR}" "${CHART_ARCHIVE}"
+        shared_tasks "${credential_file}" "${type}" "${uri}" "${repository:-}"
+        [[ "${command}" =~ pull ]] && "${command}" "${repository}"
+        [[ "${command}" =~ push ]] && "${command}" "${destination}"
 }
 
 shared_tasks() {
-    local repository="${1}"
+    local credential_file="${1}"
+    local type="${2}"
+    local uri="${3}"
+    local repository="${4:-null}"
 
-    if ! [[ -f "${CREDENTIAL_FILE}" ]]; then
-        credential_prompt
-        echo "${magenta}INFO:${normal} Generating your credential file (${CREDENTIAL_FILE})."
-        generate_credential_file "${TAC_URI}" "${TAC_USERNAME}" "${TAC_PASSWORD}" "${CREDENTIAL_FILE}" && success
+    if ! [[ -f "${credential_file}" ]]; then
+        credential_prompt "${type}"
+        info && echo "Generating your credential file (${credential_file})."
+        generate_credential_file "${uri}" "${TACFED_USERNAME}" "${TACFED_PASSWORD}" "${credential_file}" && success
     else
-        echo "${magenta}INFO:${normal} Reusing existing credential file! Delete ${CREDENTIAL_FILE} to recreate it on next invocation." && success
+        info && echo "Reusing existing credential file! Delete ${credential_file} to recreate it on next invocation." && success
     fi
 
-    echo "${magenta}INFO:${normal} Fetching the TAC asset index file. This includes your current TAC entitlements."
-    fetch_asset_index "${TAC_URI}" "${repository}" "${CREDENTIAL_FILE}" "${CACHE_DIR}" && success
+    case "${type}" in
+        "pull" )
+            info && echo "Fetching the TAC asset index file. This includes your current TAC entitlements."
+            fetch_asset_index "${uri}" "${repository}" "${credential_file}" "${CACHE_DIR}" && success;;
+    esac
 }
 
 image_pull() {
     local repository="${1}"
 
     mkdir -p "${IMAGE_DIR}"
-    echo "${magenta}INFO:${normal} Downloading images to ${IMAGE_DIR}"
-    _image_pull "${ASSET_FILE}" "${CREDENTIAL_FILE}" "${IMAGE_DIR}"
-    echo "${magenta}INFO:${normal} Gzipping all images to ${IMAGE_ARCHIVE}"
+    info && echo "Downloading images to ${IMAGE_DIR}"
+    _image_pull "${ASSET_FILE}" "${TAC_CREDENTIAL_FILE}" "${IMAGE_DIR}"
+    info && echo "Gzipping all images to ${IMAGE_ARCHIVE}"
     bundle_software "${IMAGE_ARCHIVE}" "${IMAGE_DIR}" && success
-    summary "image" "${IMAGE_ARCHIVE}" "${IMAGE_DIR}" "${repository}"
+    pull_summary "image" "${IMAGE_ARCHIVE}" "${IMAGE_DIR}" "${repository}"
 }
 
 chart_pull() {
     local repository="${1}"
 
     mkdir -p "${CHART_DIR}"
-    echo "${magenta}INFO:${normal} Downloading charts to ${CHART_DIR}"
+    info && echo "Downloading charts to ${CHART_DIR}"
     _chart_pull "${ASSET_FILE}" "${CHART_DIR}"
-    echo "${magenta}INFO:${normal} Gzipping all charts to ${CHART_ARCHIVE}"
+    info && echo "Gzipping all charts to ${CHART_ARCHIVE}"
     bundle_software "${CHART_ARCHIVE}" "${CHART_DIR}" && success
-    summary "chart" "${CHART_ARCHIVE}" "${CHART_DIR}" "${repository}"
+    pull_summary "chart" "${CHART_ARCHIVE}" "${CHART_DIR}" "${repository}"
 }
 
+image_push() {
+    local destination="${1}"
+    local dirs=()
+
+    info && echo "validating that ${IMAGE_DIR} is not empty."
+    if ! validate_image_dir "${IMAGE_DIR}"; then
+        failure && echo "${bold}${IMAGE_DIR}${normal} is empty or nonexistent. Please pull images prior."
+        exit 1
+    fi
+    success
+    _image_push "${destination}" "${IMAGE_DIR}" "${PRIVATE_REGISTRY_CREDENTIAL_FILE}"
+    push_summary "image" "${destination}"
+}
 
 clean() {
     local files=($@)
 
-    echo "${magenta}INFO:${normal} Performing some housekeeping."
+    info && echo "Performing some housekeeping."
     for element in ${files[@]}; do
         echo "${yellow}*${normal} Expunging ${element}"
         rm -rf "${element}" && success
     done
 }
 
-summary() {
+pull_summary() {
     local type="${1}"
     local archive="${2}"
     local dir="${3}"
     local repository="${4}"
 
-    echo "${magenta}INFO:${normal} Successfully pulled ${type} entitlements for ${repository}!"
+    info && echo "Successfully pulled ${type} entitlements for ${repository}!"
     echo "${yellow}*${normal} Archived ${type} entitlements saved to: ${archive}"
     echo "${yellow}*${normal} Raw ${type} entitlements saved to: ${dir}"
+}
+
+push_summary() {
+    local type="${1}"
+    local destination="${2}"
+
+    info && echo "Successfully relocated ${type} entitlements to ${destination}!"
 }
 
 main "$@"

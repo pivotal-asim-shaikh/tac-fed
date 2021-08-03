@@ -15,7 +15,15 @@
 # limitations under the License.
 
 function success() {
-    printf "${green}\xE2\x9C\x94${normal} ${yellow}OK${normal}\n"
+    printf "${yellow}\xE2\x9C\x94${normal}${green} OK ${normal}\n"
+}
+
+function failure() {
+    printf "${yellow}\xF0\x9F\x97\xB6${normal}${bold}${red} ERROR ${normal}"
+}
+
+function info() {
+    printf "${yellow}\xE2\x93\x98${normal}${bold}${magenta} INFO ${normal}"
 }
 
 function aliases() {
@@ -27,17 +35,20 @@ function aliases() {
 }
 
 function credential_prompt() {
-    read -p "[${blink}*${normal}] Enter the TAC robot username: " TAC_USERNAME && success
+    local type="${1}"
+
+    read -p "[${blink}*${normal}] Enter the username for ${type} operations: " TACFED_USERNAME && success
 
     while :; do
-        read -sp "[${blink}*${normal}] Enter the TAC robot password (token): " TAC_PASSWORD && success
-        read -sp "[${blink}*${normal}] Re-enter the TAC robot password (token): " TAC_PASSWORD_REPEAT && success
+        read -sp "[${blink}*${normal}] Enter the corresponding password for ${type} operations: " TACFED_PASSWORD && success
+        read -sp "[${blink}*${normal}] Re-enter the corresponding password for ${type} operations: " TACFED_PASSWORD_REPEAT
 
-        [[ "${TAC_PASSWORD}" != "${TAC_PASSWORD_REPEAT}" ]] || break
-        echo -e "${yellow}WARNING${normal}: The entered robot passwords did not match. Please try again.\n"
+        [[ "${TACFED_PASSWORD}" == "${TACFED_PASSWORD_REPEAT}" ]] && success && break
+        failure
+        echo -e "${yellow}WARNING${normal}: The entered passwords did not match. Please try again.\n"
     done
-    export TAC_USERNAME
-    export TAC_PASSWORD
+    export TACFED_USERNAME
+    export TACFED_PASSWORD
 }
 
 function generate_credential_file() {
@@ -103,12 +114,31 @@ _chart_pull() {
     done
 }
 
+_image_push(){
+    local destination="${1}"
+    local image_dir="${2}"
+    local credential_file="${3}"
+
+    skopeo sync \
+        --authfile "${credential_file}" \
+        --src dir \
+        --dest docker \
+        "${image_dir}" "${destination}" && success
+}
+
 contains_string() {
     local e match="${1}"
 
     shift
     for e; do [[ "${e}" == "${match}" ]] && return 0; done
     return 1
+}
+
+bundle_software() {
+    local archive="${1}"
+    local directory="${2}"
+
+    tar -czf "${archive}" "${directory}"
 }
 
 jq_encode() {
@@ -119,9 +149,12 @@ jq_encode() {
     echo "${row}" | base64 --decode | jq -r "${key}"
 }
 
-bundle_software() {
-    local archive="${1}"
-    local directory="${2}"
+validate_image_dir() {
+    local image_dir="${1}"
 
-    tar -czf "${archive}" "${directory}"
+    [[ ! -d "${image_dir}" ]] && return 1
+    dirs=$(find "${image_dir}" -maxdepth 1 -mindepth 1 -type d -printf '%f\n')
+    [[ -z "${dirs}" ]] && return 1
+
+    return 0
 }

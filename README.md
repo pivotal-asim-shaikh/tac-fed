@@ -9,15 +9,14 @@
 ## About
 Utility to assist in the movement of helm charts and container images from Tanzu Application Catalog (TAC) to an offline registry. This is currently tested on Arch Linux, RHEL 7.X and MacOS Big Sur.
 ## Getting started
-Install all of the tools in the [Requisite tooling](#requisi
-
-te-tooling) section
+Install all of the tools in the [Requisite tooling](#requisite-tooling) section
 
 Credentials are parsed from an authentication file (`tac-auth.json`), composed in the dockerconfigjson format. `tac-config.json` is generated on the first execution of this script and will be used for subsequent executions. You **must** know the robot credentials that were provided to you as part of your TAC license agreement.
 
 **NOTES**:
 * A cache directory is persisted to `~/tac-fed`.
 * Image transfer is generally slow due to serial requests to transfer images.
+* This project does **_not_** aim to be a tool for uploading charts; [charts-syncer](https://github.com/bitnami-labs/charts-syncer) is better suited for those needs.
 
 ## Requisite tooling
 `tac-fed` depends on the following tools:
@@ -38,20 +37,27 @@ USAGE: ./tac-fed COMMAND [OPTS]
 COMMANDS:
 * chart_pull: pull all of the latest charts that you are entitled to in TAC
 * image_pull: pull all of the latest container images that you are entitled to in TAC
+* image_push: synchronize a local directory of container images to TAC
 * clean: expunge the charts and images that are created by this tool
 * help: print this usage text and exit
 
-OPTS:
-* --repository: your tac repository (e.g. 'tac-federal-customer', if using registry.pivotal.io/tac-federal-customer)
+GLOBAL OPTS:
 * --help: print this usage text and exit
 
+PULL OPTS:
+* --repository: your tac repository (e.g. 'tac-federal-customer', if using registry.pivotal.io/tac-federal-customer)
+
+PUSH OPTS:
+* --destination: your private registry and path (e.g. harbor.your.private.domain/tac)
+
 ENV:
-* TAC_CACHE_DIR: location to save charts, container images, and TAC authentication file (current: /home/foo/tac-fed)
+* TAC_CACHE_DIR: location to save charts, container images and TAC authentication file (current: /home/foo/tac-fed)
 
 EXAMPLES:
     ./tac-fed clean
     ./tac-fed image_pull --repository=tac-federal-customer
     ./tac-fed chart_pull --repository=tac-federal-customer
+    ./tac-fed image_push --destination=harbor.your.private.domain/tac
 ```
 
 ### Environment variables
