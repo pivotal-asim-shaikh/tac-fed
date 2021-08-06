@@ -1,11 +1,6 @@
 # tac-fed
-```brainfuck
-   _|                                          _|_|                  _|
- _|_|_|_|    _|_|_|    _|_|_|                _|        _|_|      _|_|_|
-   _|      _|    _|  _|        _|_|_|_|_|  _|_|_|_|  _|_|_|_|  _|    _|
-   _|      _|    _|  _|                      _|      _|        _|    _|
-     _|_|    _|_|_|    _|_|_|                _|        _|_|_|    _|_|_|
-```
+
+![](.images/splash.png)
 ## About
 Utility to assist in the movement of helm charts and container images from Tanzu Application Catalog (TAC) to an offline registry. This is currently tested on Arch Linux, RHEL 7.X and MacOS Big Sur.
 ## Getting started
