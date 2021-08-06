@@ -6,10 +6,14 @@ Utility to assist in the movement of helm charts and container images from Tanzu
 ## Getting started
 Install all of the tools in the [Requisite tooling](#requisite-tooling) section
 
-Credentials are parsed from an authentication file (`tac-auth.json`), composed in the dockerconfigjson format. `tac-config.json` is generated on the first execution of this script and will be used for subsequent executions. You **must** know the robot credentials that were provided to you as part of your TAC license agreement.
+Credentials are composed into distinct authentication files for push and pull operations using the [dockerconfigjson format](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/#log-in-to-docker).
+- Pull operations leverage `registry.pivotal.io` and credentials are persisted to `tac-auth.json`
+- Push operations leverage your private registry and credentials are persisted to `private-registry-auth.json`
+
+Authentication files are generated on the first execution of this script and will be used for subsequent executions. You **must** know the robot credentials that were provided to you as part of your TAC license agreement, and you **must** possess the credentials to your private registry _if_ you want to synchronize images to it.
 
 **NOTES**:
-* A cache directory is persisted to `~/tac-fed`.
+* A cache directory is persisted to `~/tac-fed` by default; manipulate this path via [environment variables](#environment-variables).
 * Image transfer is generally slow due to serial requests to transfer images.
 * This project does **_not_** aim to be a tool for uploading charts; [charts-syncer](https://github.com/bitnami-labs/charts-syncer) is better suited for those needs.
 
