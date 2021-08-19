@@ -19,7 +19,7 @@ function success() {
 }
 
 function failure() {
-    printf "${yellow}\xF0\x9F\x97\xB6${normal}${bold}${red} ERROR ${normal}"
+    printf "${yellow}\xE2\x9D\x95${normal}${bold}${red}ERROR ${normal}"
 }
 
 function info() {
@@ -115,9 +115,22 @@ _chart_pull() {
 }
 
 _image_push(){
-    local destination="${1}"
-    local image_dir="${2}"
-    local credential_file="${3}"
+    local destination="${1}" && shift
+    local image_dir="${1}" && shift
+    local credential_file="${1}" && shift
+    local compatibility_mode="${1}" && shift
+    local images=($@)
+
+    if [[ "${compatibility_mode}" == 'true' ]]; then
+        info && echo "Outdated version of skopeo installed. Running in compatibility mode."
+        for element in ${images[@]}; do
+            local image_name="${element##*/}"
+            skopeo --insecure-policy copy \
+                --authfile "${credential_file}" \
+                dir:"${element}" docker://"${destination}/${image_name}" && success
+            return 0
+        done
+    fi
 
     skopeo sync \
         --authfile "${credential_file}" \
@@ -149,12 +162,32 @@ jq_encode() {
     echo "${row}" | base64 --decode | jq -r "${key}"
 }
 
-validate_image_dir() {
+enumerate_image_dir() {
     local image_dir="${1}"
 
     [[ ! -d "${image_dir}" ]] && return 1
     dirs=$(find "${image_dir}" -maxdepth 1 -mindepth 1 -type d)
     [[ -z "${dirs}" ]] && return 1
+
+    echo "${dirs}"
+}
+
+function skopeo_current_version() {
+    local version_output=($(skopeo --version))
+    echo "${version_output[-1]}"
+}
+
+function version() {
+    awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }' <(echo "$@")
+}
+
+function version_check(){
+    local installed_version="${1}"
+    local expected_version="${2}"
+
+    if [[ $(version "${installed_version}") -le $(version "${expected_version}") ]]; then
+        return 1
+    fi
 
     return 0
 }
