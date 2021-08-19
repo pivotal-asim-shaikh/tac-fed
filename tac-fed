@@ -30,6 +30,7 @@ IMAGE_ARCHIVE="${IMAGE_DIR}.tgz"
 TAC_CREDENTIAL_FILE="${CACHE_DIR}/tac-auth.json"
 PRIVATE_REGISTRY_CREDENTIAL_FILE="${CACHE_DIR}/private-registry-auth.json"
 HELM_REGISTRY_CONFIG="${TAC_CREDENTIAL_FILE}"
+SKOPEO_VERSION_THRESHOLD="${SKOPEO_VERSION_THRESHOLD:-0.1.41}"
 [[ -z "${TAC_URI:-}" ]] && TAC_URI="registry.pivotal.io"
 
 export HELM_EXPERIMENTAL_OCI
@@ -236,15 +237,21 @@ chart_pull() {
 
 image_push() {
     local destination="${1}"
+    local skopeo_compatibility_mode=false
     local dirs=()
 
-    info && echo "validating that ${IMAGE_DIR} is not empty."
-    if ! validate_image_dir "${IMAGE_DIR}"; then
+    info && echo "Validating that ${IMAGE_DIR} is not empty."
+    if ! enumerate_image_dir "${IMAGE_DIR}"; then
         failure && echo "${bold}${IMAGE_DIR}${normal} is empty or nonexistent. Please pull images prior."
         exit 1
     fi
+    dirs=$(enumerate_image_dir "${IMAGE_DIR}")
     success
-    _image_push "${destination}" "${IMAGE_DIR}" "${PRIVATE_REGISTRY_CREDENTIAL_FILE}"
+
+    if ! version_check $(skopeo_current_version) "${SKOPEO_VERSION_THRESHOLD}"; then
+        skopeo_compatibility_mode=true
+    fi
+    _image_push "${destination}" "${IMAGE_DIR}" "${PRIVATE_REGISTRY_CREDENTIAL_FILE}" "${skopeo_compatibility_mode}" "${dirs[@]}"
     push_summary "image" "${destination}"
 }
 
