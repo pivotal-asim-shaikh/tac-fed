@@ -1,5 +1,6 @@
 .vscode/
-asset-index.json
 charts/
 images/
+asset-index.json
+private-registry-auth.json
 tac-auth.json

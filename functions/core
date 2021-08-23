@@ -15,15 +15,15 @@
 # limitations under the License.
 
 function success() {
-    printf "${yellow}\xE2\x9C\x94${normal}${green} OK ${normal}\n"
+    printf "${yellow}\xE2\x9C\x94 ${normal}${green}OK ${normal}\n"
 }
 
 function failure() {
-    printf "${yellow}\xE2\x9D\x95${normal}${bold}${red}ERROR ${normal}"
+    printf "${yellow}\xE2\x9C\x96 ${normal}${bold}${red}ERROR ${normal}"
 }
 
 function info() {
-    printf "${yellow}\xE2\x93\x98${normal}${bold}${magenta} INFO ${normal}"
+    printf "${yellow}\xE2\x93\x98 ${normal}${bold}${magenta}INFO ${normal}"
 }
 
 function aliases() {
@@ -125,6 +125,10 @@ _image_push(){
         info && echo "Outdated version of skopeo installed. Running in compatibility mode."
         for element in ${images[@]}; do
             local image_name="${element##*/}"
+            if ! [[ -f "${element}/manifest.json" ]]; then
+                info && echo "Skipping local directory \"${image_name}.\" Missing a valid manifest.json."
+                continue
+            fi
             skopeo --insecure-policy copy \
                 --authfile "${credential_file}" \
                 dir:"${element}" docker://"${destination}/${image_name}" && success
@@ -172,9 +176,16 @@ enumerate_image_dir() {
     echo "${dirs}"
 }
 
-function skopeo_current_version() {
+# This is a brittle version test; if the string changes format, the test will no longer pass
+# Examples of what works, now:
+# % skopeo --version
+#   skopeo version 1.3.1
+#   ---
+# % skopeo --version
+#   skopeo version 1.4.0 commit: a44da449d35e4621e9993f406d5a4f98dd89965e
+function get_skopeo_version() {
     local version_output=($(skopeo --version))
-    echo "${version_output[-1]}"
+    echo "${version_output[2]}"
 }
 
 function version() {

@@ -238,6 +238,7 @@ chart_pull() {
 image_push() {
     local destination="${1}"
     local skopeo_compatibility_mode=false
+    local current_skopeo_version=$(get_skopeo_version)
     local dirs=()
 
     info && echo "Validating that ${IMAGE_DIR} is not empty."
@@ -248,7 +249,8 @@ image_push() {
     dirs=$(enumerate_image_dir "${IMAGE_DIR}")
     success
 
-    if ! version_check $(skopeo_current_version) "${SKOPEO_VERSION_THRESHOLD}"; then
+    info && echo "Using Skopeo version ${current_skopeo_version}."
+    if ! version_check ${current_skopeo_version} "${SKOPEO_VERSION_THRESHOLD}"; then
         skopeo_compatibility_mode=true
     fi
     _image_push "${destination}" "${IMAGE_DIR}" "${PRIVATE_REGISTRY_CREDENTIAL_FILE}" "${skopeo_compatibility_mode}" "${dirs[@]}"
