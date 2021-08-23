@@ -203,7 +203,7 @@ shared_tasks() {
         info && echo "Generating your credential file (${credential_file})."
         generate_credential_file "${uri}" "${TACFED_USERNAME}" "${TACFED_PASSWORD}" "${credential_file}" && success
     else
-        info && echo "Reusing existing credential file! Delete ${credential_file} to recreate it on next invocation." && success
+        info && echo "Reusing existing credential file! Delete ${credential_file} if you'd prefer to recreate it on the next invocation." && success
     fi
 
     case "${type}" in
