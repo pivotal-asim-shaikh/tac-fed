@@ -20,7 +20,7 @@ shopt -s expand_aliases
 # Global variables
 DEPENDENCIES=('oras' 'skopeo' 'helm' 'jq' 'base64')
 HELM_EXPERIMENTAL_OCI=1
-REPOSITORY_ROOT=$(git rev-parse --show-toplevel)
+REPOSITORY_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 CACHE_DIR="${TAC_CACHE_DIR:-${HOME}/tac-fed}"
 ASSET_FILE="${CACHE_DIR}/asset-index.json"
 CHART_DIR="${CACHE_DIR}/charts"
