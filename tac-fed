@@ -55,8 +55,6 @@ function main() {
     yellow=""
     local missing_dependencies=()
 
-    # source the core functions
-    source "${REPOSITORY_ROOT}/functions/core"
 
     # create our cache directory
     mkdir -p "${CACHE_DIR}"
@@ -78,6 +76,13 @@ function main() {
     fi
 
     banner
+
+    # source the core functions
+    if ! [[ -f "${REPOSITORY_ROOT}/functions/core" ]]; then
+        echo -e "${yellow}\xE2\x9C\x96 ${normal}${bold}${red}ERROR ${normal}Unable to find ${REPOSITORY_ROOT}/functions/core. Cannot continue."
+        exit 1
+    fi
+    source "${REPOSITORY_ROOT}/functions/core"
 
     for element in ${DEPENDENCIES[@]}; do
         missing_dependencies+=($(check_deps "${element}"))
