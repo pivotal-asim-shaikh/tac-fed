@@ -50,7 +50,8 @@ PUSH OPTS:
 * --destination: your private registry and path (e.g. harbor.your.private.domain/tac)
 
 ENV:
-* TAC_CACHE_DIR: location to save charts, container images and TAC authentication file (current: /home/foo/tac-fed)
+* TAC_CACHE_DIR: location to save charts, container images and TAC authentication file (current: /home/foo/tac-fed). This also controls the location of images and an authentication file for pushing images to a remote, private registry.
+* TAC_FED_DEBUG: enable debug mode (set -x).
 
 EXAMPLES:
     ./tac-fed clean
@@ -65,4 +66,10 @@ The destination directory can currently be controlled via the `TAC_CACHE_DIR` en
 ```bash
 TAC_CACHE_DIR=/tmp/tac-fed
 export TAC_CACHE_DIR
+```
+
+If you need to debug `tac-fed`, you can enable "debug" mode by setting `TAC_FED_DEBUG=true`.
+```bash
+TAC_FED_DEBUG=true
+export TAC_FED_DEBUG
 ```
