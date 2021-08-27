@@ -15,6 +15,7 @@
 # limitations under the License.
 
 set -eu
+[[ "${TAC_FED_DEBUG:-}" == 'true' ]] && set -x
 shopt -s expand_aliases
 
 # Global variables
@@ -118,7 +119,8 @@ ${bold}${yellow}PUSH OPTS${normal}:
 ${bold}* ${cyan}--destination${normal}: your private registry and path (e.g. harbor.your.private.domain/tac)
 
 ${bold}${yellow}ENV${normal}:
-${bold}* ${cyan}TAC_CACHE_DIR${normal}: location to save charts, container images and TAC authentication file (current: ${CACHE_DIR})
+${bold}* ${cyan}TAC_CACHE_DIR${normal}: location to save charts, container images and TAC authentication file (current: ${CACHE_DIR}). This also controls the location of images and an authentication file for pushing images to a remote, private registry.
+${bold}* ${cyan}TAC_FED_DEBUG${normal}: enable debug mode (set -x).
 
 ${bold}${magenta}EXAMPLES${normal}:
     ${cyan}./tac-fed clean
