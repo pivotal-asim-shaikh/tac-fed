@@ -132,8 +132,8 @@ _image_push(){
             skopeo --insecure-policy copy \
                 --authfile "${credential_file}" \
                 dir:"${element}" docker://"${destination}/${image_name}" && success
-            return 0
         done
+        return 0
     fi
 
     skopeo sync \
