@@ -21,6 +21,7 @@ shopt -s expand_aliases
 # Global variables
 DEPENDENCIES=('oras' 'skopeo' 'helm' 'jq' 'base64')
 HELM_EXPERIMENTAL_OCI=1
+HELM_VERSION_THRESHOLD="${HELM_VERSION_THRESHOLD:-3.7.0}"
 REPOSITORY_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 CACHE_DIR="${TAC_CACHE_DIR:-${HOME}/tac-fed}"
 ASSET_FILE="${CACHE_DIR}/asset-index.json"
@@ -233,10 +234,17 @@ image_pull() {
 
 chart_pull() {
     local repository="${1}"
+    local current_helm_version=$(get_helm_version)
+
+    info && echo "Using Helm version ${current_helm_version}."
+    if ! version_check ${current_helm_version} "${HELM_VERSION_THRESHOLD}"; then
+        failure && echo "Cowardly refusing to pull charts. Please upgrade your Helm CLI to ${HELM_VERSION_THRESHOLD} or newer."
+        exit 1
+    fi
 
     mkdir -p "${CHART_DIR}"
     info && echo "Downloading charts to ${CHART_DIR}"
-    _chart_pull "${ASSET_FILE}" "${CHART_DIR}"
+    _chart_pull "${ASSET_FILE}" "${CHART_DIR}" "${TAC_URI}" "${TAC_CREDENTIAL_FILE}"
     info && echo "Gzipping all charts to ${CHART_ARCHIVE}"
     bundle_software "${CHART_ARCHIVE}" "${CHART_DIR}" && success
     pull_summary "chart" "${CHART_ARCHIVE}" "${CHART_DIR}" "${repository}"

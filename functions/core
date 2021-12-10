@@ -103,14 +103,18 @@ _image_pull() {
 _chart_pull() {
     local asset_file="${1}"
     local chart_dir="${2}"
+    local uri="${3}"
+    local credential_file="${4}"
     local chart_uri=""
     local image_name=""
 
+    helm_registry_login "${credential_file}" "${uri}"
     for row in $(jq -r '.charts[] | @base64' "${asset_file}"); do
         image_name=$(jq_encode '.name' "${row}")
         chart_uri=$(jq_encode '.versions[0].uri' "${row}")
-        helm chart pull "${chart_uri}" && success
-        helm chart export -d "${chart_dir}" "${chart_uri}" && success
+        chart=$(awk -F: '{print $1}' <(echo "${chart_uri}"))
+        version=$(awk -F: '{print $2}' <(echo "${chart_uri}"))
+        helm pull --pass-credentials --destination "${chart_dir}" "oci://${chart}" --version "${version}" && success
     done
 }
 
@@ -186,6 +190,31 @@ enumerate_image_dir() {
 function get_skopeo_version() {
     local version_output=($(skopeo --version))
     echo "${version_output[2]}"
+}
+
+# This is a brittle version test; if the string changes format, the test will no longer pass
+# Examples of what works, now:
+# % helm version --template='{{.Version}}'
+#   v3.7.1
+#   ---
+function get_helm_version() {
+    local version_output=$(helm version --template='{{.Version}}')
+    echo "${version_output:1}"
+}
+
+# Helm v3 neglected the registry-config global argument for
+#  OCI-compliant registries when used to pull helm charts.
+# Instead, we have to work around these shortcomings by parsing
+#  the cached credential file
+function helm_registry_login() {
+    local credential_file="${1}"
+    local uri="${2}"
+    local decoded_htpasswd_credentials=$(jq -cr '.. | .auth? // empty'.auth "${credential_file}" | base64 -d)
+    local username=$(awk -F: '{print $1}' <(echo "${decoded_htpasswd_credentials}"))
+    local password=$(awk -F: '{print $2}' <(echo "${decoded_htpasswd_credentials}"))
+
+    aliases
+    echo "${password}" | helm registry login --username "${username}" --password-stdin "${uri}" && success
 }
 
 function version() {
